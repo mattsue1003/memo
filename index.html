@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>即時互動便利貼看板 - 已連線版</title>
+    <title>即時互動便利貼看板 - UX 優化版</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM CDN -->
@@ -15,26 +15,42 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
         body { 
             font-family: 'Noto Sans TC', sans-serif; 
-            overscroll-behavior-y: contain;
+            overscroll-behavior: none; /* 禁止手機下拉重新整理 */
+            background-color: #f1f5f9;
         }
         .board-grid {
-            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
-            background-size: 32px 32px;
+            background-image: radial-gradient(#e2e8f0 1.5px, transparent 1.5px);
+            background-size: 40px 40px;
         }
         .sticky-note {
             transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
+            touch-action: none;
+            will-change: transform, left, top;
         }
+        @media (min-width: 768px) {
+            .sticky-note:hover {
+                transform: scale(1.02) rotate(0deg) !important;
+                z-index: 50 !important;
+                box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            }
+        }
+        .animate-in { animation: scaleIn 0.3s ease-out forwards; }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        
+        /* 隱藏捲動條 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="bg-slate-50 overflow-hidden">
+<body class="overflow-hidden">
     <div id="root"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 您的專屬 Firebase 配置 ---
+        // --- Firebase 配置 ---
         const firebaseConfig = {
             apiKey: "AIzaSyB_jtK0U4C3vx7Dxe8ev9QQgwXZC7vsEJc",
             authDomain: "memo-8c2d5.firebaseapp.com",
@@ -45,40 +61,29 @@
             measurementId: "G-DJ83L7DK2K"
         };
 
-        // 如果在 AI 環境中，則嘗試使用自動配置，否則使用上面的手動配置
-        let finalConfig = firebaseConfig;
-        try {
-            if (typeof __firebase_config !== 'undefined') {
-                finalConfig = JSON.parse(__firebase_config);
-            }
-        } catch (e) {}
-
-        const appIdentifier = typeof __app_id !== 'undefined' ? __app_id : 'memo-class-board';
-
-        // 初始化
-        const app = initializeApp(finalConfig);
+        const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const appIdentifier = "memo-class-board"; // 確保與 Rules 一致
 
-        // 將工具傳遞給 React
         window.FB = { 
             auth, db, appId: appIdentifier, 
             collection, doc, addDoc, updateDoc, deleteDoc, 
             onSnapshot, serverTimestamp, signInAnonymously, 
-            signInWithCustomToken, onAuthStateChanged, getDocs, writeBatch 
+            onAuthStateChanged, getDocs, writeBatch 
         };
     </script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        const { auth, db, appId, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getDocs, writeBatch } = window.FB;
+        const { auth, db, appId, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, signInAnonymously, onAuthStateChanged, getDocs, writeBatch } = window.FB;
 
         const COLORS = [
-            { id: 'yellow', bg: 'bg-[#fef08a]', border: 'border-[#facc15]', text: 'text-yellow-950', shadow: 'shadow-yellow-200/50' },
-            { id: 'blue', bg: 'bg-[#bfdbfe]', border: 'border-[#60a5fa]', text: 'text-blue-950', shadow: 'shadow-blue-200/50' },
-            { id: 'green', bg: 'bg-[#bbf7d0]', border: 'border-[#4ade80]', text: 'text-green-950', shadow: 'shadow-green-200/50' },
-            { id: 'pink', bg: 'bg-[#fbcfe8]', border: 'border-[#f472b6]', text: 'text-pink-950', shadow: 'shadow-pink-200/50' },
-            { id: 'purple', bg: 'bg-[#e9d5ff]', border: 'border-[#a855f7]', text: 'text-purple-950', shadow: 'shadow-purple-200/50' },
+            { id: 'yellow', bg: 'bg-[#fef9c3]', border: 'border-[#fde047]', text: 'text-yellow-900', shadow: 'shadow-yellow-200/50' },
+            { id: 'blue', bg: 'bg-[#dbeafe]', border: 'border-[#93c5fd]', text: 'text-blue-900', shadow: 'shadow-blue-200/50' },
+            { id: 'green', bg: 'bg-[#dcfce7]', border: 'border-[#86efac]', text: 'text-green-900', shadow: 'shadow-green-200/50' },
+            { id: 'pink', bg: 'bg-[#fce7f3]', border: 'border-[#f9a8d4]', text: 'text-pink-900', shadow: 'shadow-pink-200/50' },
+            { id: 'purple', bg: 'bg-[#f3e8ff]', border: 'border-[#d8b4fe]', text: 'text-purple-900', shadow: 'shadow-purple-200/50' },
         ];
 
         const Icon = ({ name, size = 20, className = "" }) => {
@@ -87,17 +92,18 @@
                 trash: <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />,
                 user: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />,
                 star: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
-                move: <path d="m5 9-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" />,
-                x: <path d="M18 6 6 18M6 6l12 12" />
+                send: <path d="m22 2-7 20-4-9-9-4Z" />,
+                x: <path d="M18 6 6 18M6 6l12 12" />,
+                // 修正：使用 React.Fragment 包裹多個相鄰的 JSX 元素
+                alert: (
+                    <React.Fragment>
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </React.Fragment>
+                )
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    {name === 'palette' ? (
-                        <React.Fragment>
-                            <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
-                            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.6 1.6-1.5 0-.4-.1-.8-.4-1.1-.3-.3-.5-.8-.5-1.3 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.4-4.5-8-10-8z"/>
-                        </React.Fragment>
-                    ) : icons[name]}
+                    {icons[name]}
                 </svg>
             );
         };
@@ -106,138 +112,269 @@
             const [user, setUser] = useState(null);
             const [notes, setNotes] = useState([]);
             const [role, setRole] = useState('student');
-            const [userName, setUserName] = useState('');
-            const [showNameModal, setShowNameModal] = useState(false);
+            const [userName, setUserName] = useState(localStorage.getItem('sticky_note_username') || '');
+            const [showNameModal, setShowNameModal] = useState(!localStorage.getItem('sticky_note_username'));
             const [showSidebar, setShowSidebar] = useState(window.innerWidth > 768);
             const [newNoteText, setNewNoteText] = useState('');
             const [selectedColor, setSelectedColor] = useState(COLORS[0]);
             const [isDragging, setIsDragging] = useState(null);
+            const [errorMessage, setErrorMessage] = useState(null);
+            const [isSubmitting, setIsSubmitting] = useState(false);
             const boardRef = useRef(null);
 
+            // 1. 初始化 Auth
             useEffect(() => {
-                const savedName = localStorage.getItem('sticky_note_username');
-                if (savedName) setUserName(savedName); else setShowNameModal(true);
-
                 const initAuth = async () => {
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else { await signInAnonymously(auth); }
-                    } catch (e) { console.error("Firebase Auth Error: 請檢查匿名登入是否開啟。"); }
+                        await signInAnonymously(auth);
+                    } catch (e) { 
+                        setErrorMessage("無法連線到伺服器，請檢查網路或 Firebase 設定。");
+                    }
                 };
                 initAuth();
-                return onAuthStateChanged(auth, setUser);
+                return onAuthStateChanged(auth, (u) => setUser(u));
             }, []);
 
+            // 2. 監聽資料
             useEffect(() => {
                 if (!user) return;
-                // 使用公共路徑結構，避免權限問題
                 const q = collection(db, 'artifacts', appId, 'public', 'data', 'notes');
-                return onSnapshot(q, (snapshot) => {
+                const unsubscribe = onSnapshot(q, (snapshot) => {
                     setNotes(snapshot.docs.map(d => ({ 
                         id: d.id, 
-                        rotation: (Math.random() * 4 - 2), 
+                        rotation: (Math.random() * 6 - 3), 
                         ...d.data() 
                     })));
+                    setErrorMessage(null);
+                }, (err) => {
+                    setErrorMessage("讀取權限不足，請檢查 Firestore Rules 設定。");
                 });
+                return () => unsubscribe();
             }, [user]);
 
+            // 發布便利貼
             const addNote = async (e) => {
-                e.preventDefault();
-                if (!newNoteText.trim() || !user || !userName) return;
+                if (e) e.preventDefault();
+                if (!newNoteText.trim() || !user || !userName || isSubmitting) return;
+                
+                setIsSubmitting(true);
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notes'), {
-                        content: newNoteText, colorId: selectedColor.id, authorName: userName, stars: 0,
-                        x: Math.random() * 50 + 10, y: Math.random() * 40 + 10, createdAt: serverTimestamp()
+                        content: newNoteText,
+                        colorId: selectedColor.id,
+                        authorName: userName,
+                        stars: 0,
+                        x: Math.random() * 50 + 10,
+                        y: Math.random() * 40 + 10,
+                        createdAt: serverTimestamp()
                     });
                     setNewNoteText('');
                     if (window.innerWidth < 768) setShowSidebar(false);
-                } catch (err) { console.error("Firebase Write Error:", err); }
+                } catch (err) { 
+                    setErrorMessage("發布失敗：請確認資料庫規則已設為允許讀寫。");
+                } finally {
+                    setIsSubmitting(false);
+                }
             };
 
-            const startDrag = (id, clientX, clientY, target) => {
+            // 拖拽邏輯
+            const handleDragStart = (id, clientX, clientY, target) => {
                 if (role !== 'teacher') return;
                 const rect = target.getBoundingClientRect();
                 setIsDragging({ id, offsetX: clientX - rect.left, offsetY: clientY - rect.top });
             };
 
-            const moveDrag = (clientX, clientY) => {
+            const handleDragMove = (clientX, clientY) => {
                 if (!isDragging || !boardRef.current) return;
                 const boardRect = boardRef.current.getBoundingClientRect();
-                let x = Math.max(0, Math.min(((clientX - boardRect.left - isDragging.offsetX) / boardRect.width) * 100, 85));
-                let y = Math.max(0, Math.min(((clientY - boardRect.top - isDragging.offsetY) / boardRect.height) * 100, 85));
+                let x = Math.max(0, Math.min(((clientX - boardRect.left - isDragging.offsetX) / boardRect.width) * 100, 88));
+                let y = Math.max(0, Math.min(((clientY - boardRect.top - isDragging.offsetY) / boardRect.height) * 100, 88));
                 setNotes(prev => prev.map(n => n.id === isDragging.id ? { ...n, x, y } : n));
             };
 
-            const endDrag = async () => {
+            const handleDragEnd = async () => {
                 if (!isDragging) return;
                 const note = notes.find(n => n.id === isDragging.id);
-                if (note) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { x: note.x, y: note.y });
+                if (note) {
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { x: note.x, y: note.y });
+                    } catch (e) { setErrorMessage("移動失敗：權限不足。"); }
+                }
                 setIsDragging(null);
             };
 
             return (
-                <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+                <div className="flex flex-col h-screen overflow-hidden select-none">
+                    {/* 錯誤通知 */}
+                    {errorMessage && (
+                        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] w-[90%] max-w-md bg-red-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in">
+                            <Icon name="alert" size={24} className="shrink-0" />
+                            <p className="flex-1 text-sm font-bold leading-tight">{errorMessage}</p>
+                            <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-white/20 rounded-lg"><Icon name="x" size={18} /></button>
+                        </div>
+                    )}
+
+                    {/* 姓名輸入視窗 */}
                     {showNameModal && (
-                        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
-                            <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
-                                <Icon name="user" size={48} className="mx-auto mb-6 text-indigo-600" />
-                                <h3 className="text-2xl font-bold mb-8">請輸入您的姓名</h3>
-                                <form onSubmit={(e) => { e.preventDefault(); if(userName.trim()){ localStorage.setItem('sticky_note_username', userName); setShowNameModal(false); } }} className="space-y-4">
-                                    <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="您的姓名" className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-center text-xl" autoFocus />
-                                    <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200">開始使用</button>
+                        <div className="fixed inset-0 bg-slate-900/60 z-[200] flex items-center justify-center p-6 backdrop-blur-sm">
+                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl text-center">
+                                <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                                    <Icon name="user" size={40} />
+                                </div>
+                                <h3 className="text-2xl font-bold text-slate-800 mb-2">歡迎參加互動！</h3>
+                                <p className="text-slate-500 mb-8">請輸入您的姓名以開始留言</p>
+                                <form onSubmit={(e) => { 
+                                    e.preventDefault(); 
+                                    if(userName.trim()){ 
+                                        localStorage.setItem('sticky_note_username', userName); 
+                                        setShowNameModal(false); 
+                                    } 
+                                }} className="space-y-4">
+                                    <input 
+                                        type="text" 
+                                        value={userName} 
+                                        onChange={(e) => setUserName(e.target.value)} 
+                                        placeholder="例如：林老師" 
+                                        className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-center text-xl font-bold" 
+                                        autoFocus 
+                                    />
+                                    <button className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all">進入看板</button>
                                 </form>
                             </div>
                         </div>
                     )}
 
-                    <header className="bg-white/80 backdrop-blur-md border-b px-4 md:px-8 py-4 flex justify-between items-center z-50">
+                    {/* 頂部導航 */}
+                    <header className="bg-white/90 backdrop-blur-md border-b px-6 py-4 flex justify-between items-center z-50 sticky top-0">
                         <div className="flex items-center gap-3">
-                            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg"><Icon name="move" size={20} /></div>
-                            <h1 className="font-bold text-xl hidden sm:block">即時互動留言板</h1>
+                            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg"><Icon name="send" size={20} /></div>
+                            <h1 className="font-black text-xl text-slate-800 hidden sm:block tracking-tight">CLASS BOARD</h1>
                         </div>
-                        <div className="flex bg-slate-100 p-1 rounded-full scale-90 md:scale-100">
-                            <button onClick={() => setRole('student')} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${role === 'student' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>學員</button>
-                            <button onClick={() => setRole('teacher')} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${role === 'teacher' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>教師</button>
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                            <button onClick={() => setRole('student')} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${role === 'student' ? 'bg-white shadow-md text-indigo-600' : 'text-slate-500'}`}>學員端</button>
+                            <button onClick={() => setRole('teacher')} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${role === 'teacher' ? 'bg-white shadow-md text-indigo-600' : 'text-slate-500'}`}>教師端</button>
                         </div>
                     </header>
 
                     <div className="flex-1 flex overflow-hidden relative">
-                        <aside className={`fixed md:relative inset-y-0 left-0 w-[85%] md:w-96 bg-white border-r p-6 md:p-8 z-[60] transition-transform duration-500 ease-out shadow-2xl md:shadow-none ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${!showSidebar && 'md:w-0 md:p-0 md:opacity-0 pointer-events-none md:overflow-hidden'}`}>
+                        {/* 側邊輸入欄 */}
+                        <aside className={`
+                            fixed md:relative inset-y-0 left-0 w-full md:w-96 bg-white border-r p-8 z-[100] transition-transform duration-500 ease-in-out
+                            ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+                            ${!showSidebar && 'md:w-0 md:p-0 md:opacity-0 md:overflow-hidden'}
+                        `}>
                             <div className="flex justify-between items-center mb-8">
-                                <h2 className="text-xl font-black text-slate-800 tracking-wide uppercase">發布留言</h2>
-                                <button onClick={() => setShowSidebar(false)} className="md:hidden p-2 text-slate-400"><Icon name="x" /></button>
+                                <h2 className="text-2xl font-black text-slate-800 uppercase tracking-wide">New Post</h2>
+                                <button onClick={() => setShowSidebar(false)} className="md:hidden p-3 bg-slate-100 rounded-2xl text-slate-500"><Icon name="x" /></button>
                             </div>
+                            
                             <form onSubmit={addNote} className="space-y-6">
-                                <textarea value={newNoteText} onChange={(e) => setNewNoteText(e.target.value)} placeholder="寫下想法..." className="w-full h-48 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl resize-none outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                <div className="flex justify-between">{COLORS.map(c => (<button key={c.id} type="button" onClick={() => setSelectedColor(c)} className={`w-10 h-10 rounded-2xl border-2 transition-all ${c.bg} ${selectedColor.id === c.id ? 'border-slate-800 scale-110' : 'border-transparent opacity-60'}`} />))}</div>
-                                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-xl shadow-indigo-100"><Icon name="plus" size={22} /> 發布便利貼</button>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">內容</label>
+                                    <textarea 
+                                        value={newNoteText} 
+                                        onChange={(e) => setNewNoteText(e.target.value)} 
+                                        onKeyDown={(e) => { if (e.ctrlKey && e.key === 'Enter') addNote(); }}
+                                        placeholder="在此輸入您的想法..." 
+                                        className="w-full h-48 p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl resize-none outline-none focus:border-indigo-500 focus:bg-white transition-all text-lg leading-relaxed shadow-inner" 
+                                    />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">顏色</label>
+                                    <div className="flex justify-between px-1">
+                                        {COLORS.map(c => (
+                                            <button key={c.id} type="button" onClick={() => setSelectedColor(c)} className={`w-11 h-11 rounded-2xl border-4 transition-all ${c.bg} ${selectedColor.id === c.id ? 'border-slate-800 scale-110 shadow-xl' : 'border-transparent opacity-60 hover:opacity-100'}`} />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button 
+                                    disabled={isSubmitting || !newNoteText.trim()}
+                                    className="w-full bg-indigo-600 disabled:bg-slate-300 text-white py-5 rounded-[2rem] font-bold text-lg flex items-center justify-center gap-3 shadow-2xl shadow-indigo-100 transition-all active:scale-95"
+                                >
+                                    {isSubmitting ? "發送中..." : <React.Fragment><Icon name="plus" size={24} /> 發布便利貼</React.Fragment>}
+                                </button>
                             </form>
-                            <div className="mt-auto pt-12 border-t flex items-center justify-between text-slate-600 font-bold">
-                                <span>{userName}</span>
-                                <button onClick={() => setShowNameModal(true)} className="text-xs text-indigo-500 underline">修改</button>
+                            
+                            <div className="mt-auto pt-8 border-t flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Author</span>
+                                    <span className="text-lg font-bold text-slate-800">{userName}</span>
+                                </div>
+                                <button onClick={() => setShowNameModal(true)} className="text-sm text-indigo-600 font-bold hover:underline">修改資料</button>
                             </div>
                         </aside>
 
-                        <div ref={boardRef} onMouseMove={(e) => moveDrag(e.clientX, e.clientY)} onMouseUp={endDrag} onTouchMove={(e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY)} onTouchEnd={endDrag} className="flex-1 relative overflow-hidden board-grid bg-slate-100/50">
-                            {!showSidebar && <button onClick={() => setShowSidebar(true)} className="md:hidden fixed bottom-8 right-8 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl z-[70] flex items-center justify-center animate-bounce"><Icon name="plus" size={28} /></button>}
+                        {/* 看板區域 */}
+                        <div 
+                            ref={boardRef} 
+                            onMouseMove={(e) => handleDragMove(e.clientX, e.clientY)}
+                            onMouseUp={handleDragEnd}
+                            onTouchMove={(e) => handleDragMove(e.touches[0].clientX, e.touches[0].clientY)}
+                            onTouchEnd={handleDragEnd}
+                            className="flex-1 relative overflow-hidden board-grid cursor-default"
+                        >
+                            {!showSidebar && (
+                                <button 
+                                    onClick={() => setShowSidebar(true)}
+                                    className="md:hidden fixed bottom-10 right-10 w-20 h-20 bg-indigo-600 text-white rounded-[2rem] shadow-2xl z-[90] flex items-center justify-center active:scale-90 transition-all border-4 border-white"
+                                >
+                                    <Icon name="plus" size={32} />
+                                </button>
+                            )}
+                            
                             {notes.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center"><Icon name="move" size={60} className="mb-6 opacity-20" /><h3 className="text-xl font-bold">等待第一則留言...</h3></div>
+                                <div className="h-full flex flex-col items-center justify-center text-slate-300 p-8 text-center animate-pulse">
+                                    <Icon name="send" size={80} className="mb-6 opacity-10" />
+                                    <h3 className="text-2xl font-bold uppercase tracking-widest opacity-30">Waiting for first post</h3>
+                                </div>
                             ) : (
                                 notes.map(note => {
                                     const color = COLORS.find(c => c.id === note.colorId) || COLORS[0];
                                     return (
-                                        <div key={note.id} onMouseDown={(e) => startDrag(note.id, e.clientX, e.clientY, e.currentTarget)} onTouchStart={(e) => startDrag(note.id, e.touches[0].clientX, e.touches[0].clientY, e.currentTarget)} style={{ left: `${note.x}%`, top: `${note.y}%`, zIndex: isDragging?.id === note.id ? 100 : 10, transform: `rotate(${note.rotation || 0}deg)` }} className={`absolute w-44 md:w-56 p-5 sticky-note border-l-[6px] shadow-lg ${color.bg} ${color.border} ${color.shadow} rounded-tr-3xl rounded-br-lg rounded-bl-3xl`}>
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className={`flex gap-0.5 ${role === 'teacher' ? 'cursor-pointer hover:bg-black/5' : ''}`} onClick={() => role === 'teacher' && updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { stars: (note.stars + 1) % 6 })}>
-                                                    {[...Array(5)].map((_, i) => <Icon key={i} name="star" size={12} className={i < note.stars ? "fill-amber-500 text-amber-500" : "text-black/10"} />)}
+                                        <div 
+                                            key={note.id} 
+                                            onMouseDown={(e) => handleDragStart(note.id, e.clientX, e.clientY, e.currentTarget)}
+                                            onTouchStart={(e) => handleDragStart(note.id, e.touches[0].clientX, e.touches[0].clientY, e.currentTarget)}
+                                            style={{ 
+                                                left: `${note.x}%`, 
+                                                top: `${note.y}%`, 
+                                                zIndex: isDragging?.id === note.id ? 200 : 10,
+                                                transform: `rotate(${note.rotation || 0}deg)`
+                                            }} 
+                                            className={`
+                                                absolute w-[180px] md:w-[220px] min-h-[160px] p-6 sticky-note border-l-[10px] shadow-xl animate-in
+                                                ${color.bg} ${color.border} ${color.shadow}
+                                                ${role === 'teacher' ? 'cursor-grab active:cursor-grabbing' : ''}
+                                                rounded-tr-[2rem] rounded-br-[0.5rem] rounded-bl-[2rem]
+                                            `}
+                                        >
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div 
+                                                    className={`flex gap-0.5 p-1 rounded-lg ${role === 'teacher' ? 'cursor-pointer hover:bg-black/5' : ''}`}
+                                                    onClick={() => role === 'teacher' && updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { stars: (note.stars + 1) % 6 })}
+                                                >
+                                                    {[...Array(5)].map((_, i) => <Icon key={i} name="star" size={14} className={i < note.stars ? "fill-amber-500 text-amber-500" : "text-black/10"} />)}
                                                 </div>
-                                                {role === 'teacher' && <button onClick={() => confirm('刪除？') && deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id))} className="text-black/20 hover:text-red-500"><Icon name="trash" size={14}/></button>}
+                                                {role === 'teacher' && <button onClick={() => confirm('確定要刪除這則留言？') && deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id))} className="text-black/10 hover:text-red-500 p-1"><Icon name="trash" size={16}/></button>}
                                             </div>
-                                            <div className={`text-base font-bold mb-6 whitespace-pre-wrap ${color.text}`}>{note.content}</div>
-                                            <div className="flex justify-between items-end border-t border-black/5 pt-3">
-                                                <span className="text-xs font-bold opacity-70 truncate max-w-[80px]">{note.authorName}</span>
-                                                {role === 'teacher' && <div className="flex gap-1">{COLORS.map(c => <button key={c.id} onClick={() => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { colorId: c.id })} className={`w-3 h-3 rounded-full ${c.bg} border border-black/5`} />)}</div>}
+                                            
+                                            <div className={`text-base md:text-lg font-bold mb-8 whitespace-pre-wrap ${color.text} leading-tight`}>{note.content}</div>
+                                            
+                                            <div className="flex justify-between items-end border-t border-black/5 pt-4">
+                                                <span className="text-[10px] font-black uppercase opacity-25 tracking-[0.1em] truncate max-w-[100px]">{note.authorName}</span>
+                                                {role === 'teacher' && (
+                                                    <div className="flex gap-1">
+                                                        {COLORS.map(c => (
+                                                            <button 
+                                                                key={c.id} 
+                                                                onClick={() => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notes', note.id), { colorId: c.id })} 
+                                                                className={`w-3.5 h-3.5 rounded-full ${c.bg} border border-black/5`} 
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );
